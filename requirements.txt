@@ -1,0 +1,10 @@
+selenium
+undetected-chromedriver
+selenium-stealth
+pandas
+psutil
+google-cloud-storage
+openpyxl
+fastapi
+uvicorn
+setuptools
