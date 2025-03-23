@@ -91,10 +91,12 @@ def scrapping(usuario: str, password: str):
                     fix_hairline=True,
                     )
             
-            driver.execute_script(""" 
+            driver.execute_script("""
                 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
                 Object.defineProperty(navigator, 'languages', {get: () => ['es-ES', 'en-US']});
                 Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                window.navigator.chrome = { runtime: {} };
+                window.chrome = { runtime: {} };
             """)
 
             driver.execute_script(""" 
@@ -105,6 +107,7 @@ def scrapping(usuario: str, password: str):
                 };
             """)
             
+            driver.delete_all_cookies()
             driver.get("https://www.aguasandinas.cl/web/aguasandinas/login")
             wait = WebDriverWait(driver, 10)
             tomar_screenshot(driver, "login_page.png")
