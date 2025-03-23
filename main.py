@@ -148,8 +148,6 @@ def scrapping(usuario: str, password: str):
         except WebDriverException as e:
             print(f"Error con el WebDriver: {e}")
         except Exception as e:
-            print(f"Error inesperado: {e}")
-        except Exception as e:
             print(f"Error ocurrido: {e}")
             if 'driver' in locals():
                 driver.quit()
