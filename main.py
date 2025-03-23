@@ -91,6 +91,20 @@ def scrapping(usuario: str, password: str):
                     fix_hairline=True,
                     )
             
+            driver.execute_script(""" 
+                Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                Object.defineProperty(navigator, 'languages', {get: () => ['es-ES', 'en-US']});
+                Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+            """)
+
+            driver.execute_script(""" 
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                    if (parameter === 37445) { return 'Intel UHD Graphics'; }
+                    return getParameter(parameter);
+                };
+            """)
+            
             driver.get("https://www.aguasandinas.cl/web/aguasandinas/login")
             wait = WebDriverWait(driver, 10)
             tomar_screenshot(driver, "login_page.png")
