@@ -107,6 +107,13 @@ def scrapping(usuario: str, password: str):
 
             btnIngresar = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@value='INGRESAR']")))
             btnIngresar.click()
+            
+            try:
+                btnCerrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'CERRAR')]")))
+                btnCerrar.click()
+            except Exception as e:
+                print("PopUp No Visible")
+                
             tomar_screenshot(driver, "login_page1.png")
 
             time.sleep(random.uniform(3, 5))
@@ -143,10 +150,28 @@ def scrapping(usuario: str, password: str):
 
         except TimeoutException:
             print("Tiempo de espera agotado esperando un elemento.")
+            if 'driver' in locals():
+                driver.quit()
+
+            intentos += 1
+            if intentos >= MAX_INTENTOS:
+                print("Se alcanzó el número máximo de intentos. Saliendo...")
         except NoSuchElementException:
             print("No se encontró un elemento en la página.")
+            if 'driver' in locals():
+                driver.quit()
+
+            intentos += 1
+            if intentos >= MAX_INTENTOS:
+                print("Se alcanzó el número máximo de intentos. Saliendo...")
         except WebDriverException as e:
             print(f"Error con el WebDriver: {e}")
+            if 'driver' in locals():
+                driver.quit()
+
+            intentos += 1
+            if intentos >= MAX_INTENTOS:
+                print("Se alcanzó el número máximo de intentos. Saliendo...")
         except Exception as e:
             print(f"Error ocurrido: {e}")
             if 'driver' in locals():
