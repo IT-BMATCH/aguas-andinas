@@ -48,13 +48,14 @@ def cerrar_edge():
             os.kill(proc.info['pid'], signal.SIGTERM)
     
 def scrapping(usuario: str, password: str):
-    MAX_INTENTOS = 5
+    MAX_INTENTOS = 3
     intentos = 0
 
     while intentos < MAX_INTENTOS:
         try:
             print(f"Intento {intentos + 1} de {MAX_INTENTOS}...")
-            
+
+            # Configurar opciones de Chrome
             options = uc.ChromeOptions()
             options.add_argument("--headless")
             options.add_argument("--disable-gpu")
@@ -70,18 +71,19 @@ def scrapping(usuario: str, password: str):
             options.add_argument("--blink-settings=imagesEnabled=true")
             options.add_argument("--font-render-hinting=none")
             
+
             user_agents = [
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
                 "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"
             ]
             options.add_argument(f"user-agent={random.choice(user_agents)}")
-            
+
             prefs = {"download.default_directory": download_directory}
             options.add_experimental_option("prefs", prefs)
-            
+
             driver = uc.Chrome(options=options)
-            
+
             stealth(driver,
                     languages=["es-ES", "en"],
                     vendor="Google Inc.",
@@ -90,7 +92,7 @@ def scrapping(usuario: str, password: str):
                     renderer="Intel Iris OpenGL Engine",
                     fix_hairline=True,
                     )
-            
+
             driver.execute_script("""
                 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
                 Object.defineProperty(navigator, 'languages', {get: () => ['es-ES', 'en-US']});
@@ -106,7 +108,6 @@ def scrapping(usuario: str, password: str):
                     return getParameter(parameter);
                 };
             """)
-            
             driver.delete_all_cookies()
             driver.get("https://www.aguasandinas.cl/web/aguasandinas/login")
             wait = WebDriverWait(driver, 10)
@@ -115,12 +116,12 @@ def scrapping(usuario: str, password: str):
             inputRut = wait.until(EC.presence_of_element_located((By.ID, "rut2")))
             for char in usuario:
                 inputRut.send_keys(char)
-                time.sleep(random.uniform(0.3, 0.7))
+                time.sleep(random.uniform(1.2, 3.5))
 
             inputPass = wait.until(EC.presence_of_element_located((By.ID, "clave")))
             for char in password:
                 inputPass.send_keys(char)
-                time.sleep(random.uniform(0.3, 0.7))
+                time.sleep(random.uniform(1.2, 3.5))
 
             btnIngresar = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@value='INGRESAR']")))
             btnIngresar.click()
@@ -130,28 +131,40 @@ def scrapping(usuario: str, password: str):
                 btnCerrar.click()
             except Exception as e:
                 print("PopUp No Visible")
-                
+
             tomar_screenshot(driver, "login_page1.png")
 
             time.sleep(random.uniform(3, 5))
             btnMisCuentas = wait.until(EC.element_to_be_clickable((By.XPATH, "//name[contains(text(),'Mis cuentas')]/../..")))
             btnMisCuentas.click()
+
             tomar_screenshot(driver, "login_page2.png")
 
-            numerosFactura, mes, fechaVencimiento, monto, estado = [], [], [], [], []
-            
+            numerosFactura = []
+            mes = []
+            fechaVencimiento = []
+            monto = []
+            estado = []
+
             for i in range(1, 4):
                 numerosFactura.append(driver.find_element(By.XPATH, f'(//td[@data-th="Numero de factura"])[{i}]').text)
                 mes.append(driver.find_element(By.XPATH, f'(//td[@data-th="Mes"])[{i}]').text)
                 fechaVencimiento.append(driver.find_element(By.XPATH, f'(//td[@data-th="Fecha de vencimiento"])[{i}]').text)
                 monto.append(driver.find_element(By.XPATH, f'(//td[@data-th="Monto"])[{i}]').text)
                 estado.append(driver.find_element(By.XPATH, f'(//td[@data-th="Estado"])[{i}]').text)
-                
                 btnDescargaPDF = driver.find_element(By.XPATH, f'(//td[@data-th="PDF"])[{i}]')
                 btnDescargaPDF.click()
                 time.sleep(3)
                 cerrar_edge()
                 time.sleep(1)
+
+            data = {
+                "Numero Factura": numerosFactura,
+                "Mes": mes,
+                "Fecha Vencimiento": fechaVencimiento,
+                "Monto": monto,
+                "Estado": estado
+            }
             
             data = {"Numero Factura": numerosFactura, "Mes": mes, "Fecha Vencimiento": fechaVencimiento, "Monto": monto, "Estado": estado}
             df = pd.DataFrame(data)
