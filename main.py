@@ -16,8 +16,17 @@ import psutil
 from google.cloud import storage
 import uvicorn
 import signal
+import firebase_admin
+from firebase_admin import credentials, firestore
+from typing import Optional, Dict, Any
 
 app = FastAPI()
+
+if not firebase_admin._apps:
+    cred = credentials.Certificate("/root/aguas-andinas/service-account-key.json") 
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
 
 class ScrappingRequest(BaseModel):
     usuario: str
@@ -30,6 +39,59 @@ bucket = storage_client.bucket(BUCKET_NAME)
 
 download_directory = os.path.abspath("Archivos")
 os.makedirs(download_directory, exist_ok=True)
+
+def update_connection_status(connection_id: str, new_status: str):
+    doc_ref = db.collection("connections").document(connection_id)
+    doc_ref.update({"status": new_status})
+    print(f"Connection {connection_id} status updated to {new_status}")
+
+def update_connection_scrap(connection_id: str, scrapSuccess: bool, status: str):
+    doc_ref = db.collection("connections").document(connection_id)
+    doc_ref.update({"scrapSuccess": scrapSuccess, "status": status})
+    print(f"Connection {connection_id} scrap success updated to {scrapSuccess}")
+
+def create_service_reading(
+    service_id: str,
+    service_connection_id: str,
+    user_id: str,
+    value: float,
+    status_service: str,
+    unit: str,
+    reading_date: str,
+    month: str,
+    year: str,
+    type_: str,
+    due_date: str,
+    total_a_pagar: Optional[float] = None,
+    previous_balance: Optional[float] = None,
+    bucket_url: Optional[str] = None,
+    pdf: Optional[Any] = None,
+    invoice_details: Optional[Dict] = None,
+    is_factura: Optional[bool] = None
+) -> str:
+    reading_data = {
+        "serviceId": service_id,
+        "serviceConnectionId": service_connection_id,
+        "userId": user_id,
+        "value": value,
+        "totalAPagar": total_a_pagar,
+        "previousBalance": previous_balance,
+        "statusService": status_service,
+        "unit": unit,
+        "readingDate": reading_date,
+        "month": month,
+        "year": year,
+        "type": type_,
+        "bucketURL": bucket_url,
+        "invoiceDetails": invoice_details,
+        "isFactura": is_factura,
+        "dueDate": due_date,
+    }
+
+    doc_ref = db.collection("readings").add(reading_data)
+    print(f"New service reading created with ID: {doc_ref[1].id}")
+    
+    return doc_ref[1].id
 
 def upload_to_gcs(local_path, destination_blob_name):
     blob = bucket.blob(destination_blob_name)
@@ -228,3 +290,5 @@ async def scrap_data(request: ScrappingRequest):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
