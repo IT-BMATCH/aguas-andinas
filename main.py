@@ -19,6 +19,7 @@ import signal
 import firebase_admin
 from firebase_admin import credentials, firestore
 from typing import Optional, Dict, Any
+import ksuid
 
 app = FastAPI()
 
@@ -50,6 +51,14 @@ def update_connection_scrap(connection_id: str, scrapSuccess: bool, status: str)
     doc_ref.update({"scrapSuccess": scrapSuccess, "status": status})
     print(f"Connection {connection_id} scrap success updated to {scrapSuccess}")
 
+def generate_ksuid(prefix: str = None) -> str:
+    generated_ksuid = ksuid.ksuid() 
+    id_string = str(generated_ksuid) 
+
+    if prefix:
+        return f"{prefix}_{id_string}"
+    return id_string
+
 def create_service_reading(
     service_id: str,
     service_connection_id: str,
@@ -69,7 +78,20 @@ def create_service_reading(
     invoice_details: Optional[Dict] = None,
     is_factura: Optional[bool] = None
 ) -> str:
+    collection_ref = db.collection("readings")
+
+    existing_docs = collection_ref.where("serviceConnectionId", "==", service_connection_id)\
+                                  .where("month", "==", month)\
+                                  .where("year", "==", year)\
+                                  .stream()
+    
+    doc_id = None
+    for doc in existing_docs:
+        doc_id = doc.id 
+        break
+    
     reading_data = {
+        "id": generate_ksuid("read"),
         "serviceId": service_id,
         "serviceConnectionId": service_connection_id,
         "userId": user_id,
@@ -88,10 +110,15 @@ def create_service_reading(
         "dueDate": due_date,
     }
 
-    doc_ref = db.collection("readings").add(reading_data)
-    print(f"New service reading created with ID: {doc_ref[1].id}")
+    if doc_id:
+        collection_ref.document(doc_id).set(reading_data, merge=True)
+        print(f"Service reading updated with ID: {doc_id}")
+    else:
+        doc_ref = collection_ref.add(reading_data)
+        doc_id = doc_ref[1].id
+        print(f"New service reading created with ID: {doc_id}")
     
-    return doc_ref[1].id
+    return doc_id
 
 def upload_to_gcs(local_path, destination_blob_name):
     blob = bucket.blob(destination_blob_name)
