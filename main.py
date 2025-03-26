@@ -14,6 +14,8 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from typing import Optional, Dict, Any
 from datetime import datetime
+import ksuid
+
 
 url = "https://operations-api-service-3hhibg5dra-tl.a.run.app/try-again-connections/get-pending-aguas-andinas"
 headers = {
@@ -49,13 +51,22 @@ def limpiarMonto(montoOriginal):
     valor_limpio = valor.replace('$', '').replace('.', '')
     valor_numero = int(valor_limpio)
     return float(valor_numero)
-    
+
+
+def generate_ksuid(prefix: str = None) -> str:
+    generated_ksuid = ksuid.ksuid() 
+    id_string = str(generated_ksuid) 
+
+    if prefix:
+        return f"{prefix}_{id_string}"
+    return id_string    
 
 def create_service_reading(
     service_id: str,
     service_connection_id: str,
     user_id: str,
     value: float,
+    status_service: str,
     unit: str,
     reading_date: str,
     month: str,
@@ -63,19 +74,33 @@ def create_service_reading(
     type_: str,
     due_date: str,
     total_a_pagar: Optional[float] = None,
-    previous_balance: Optional[float] = 0,
+    previous_balance: Optional[float] = None,
     bucket_url: Optional[str] = None,
     pdf: Optional[Any] = None,
     invoice_details: Optional[Dict] = None,
     is_factura: Optional[bool] = None
 ) -> str:
+    collection_ref = db.collection("readings")
+
+    existing_docs = collection_ref.where("serviceConnectionId", "==", service_connection_id)\
+                                  .where("month", "==", month)\
+                                  .where("year", "==", year)\
+                                  .stream()
+    
+    doc_id = None
+    for doc in existing_docs:
+        doc_id = doc.id 
+        break
+    
     reading_data = {
+        "id": generate_ksuid("read"),
         "serviceId": service_id,
         "serviceConnectionId": service_connection_id,
         "userId": user_id,
         "value": value,
         "totalAPagar": total_a_pagar,
         "previousBalance": previous_balance,
+        "statusService": status_service,
         "unit": unit,
         "readingDate": reading_date,
         "month": month,
@@ -86,9 +111,17 @@ def create_service_reading(
         "isFactura": is_factura,
         "dueDate": due_date,
     }
-    doc_ref = db.collection("readings").add(reading_data)
-    print(f"New service reading created with ID: {doc_ref[1].id}")
-    return doc_ref[1].id
+
+    if doc_id:
+        collection_ref.document(doc_id).set(reading_data, merge=True)
+        print(f"Service reading updated with ID: {doc_id}")
+    else:
+        doc_ref = collection_ref.add(reading_data)
+        doc_id = doc_ref[1].id
+        print(f"New service reading created with ID: {doc_id}")
+    
+    return doc_id
+
     
 
 def update_scrapping_success(connection_id: str, scrapSuccess: bool, minerSuccess:bool, errorDetail:str = "", status = "active"):
