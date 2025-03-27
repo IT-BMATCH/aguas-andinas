@@ -15,6 +15,7 @@ from firebase_admin import credentials, firestore
 from typing import Optional, Dict, Any
 from datetime import datetime
 import ksuid
+from twocaptcha import TwoCaptcha
 
 
 url = "https://operations-api-service-3hhibg5dra-tl.a.run.app/try-again-connections/get-pending-aguas-andinas"
@@ -28,6 +29,65 @@ if not firebase_admin._apps:
     
 db = firestore.client()
 
+def eliminarCuentaError(nroCuentaString):
+    print("Eliminando cuenta mal puesta")
+    try:
+        driver.get("https://www.aguasandinas.cl/web/aguasandinas/informacion-de-la-cuenta")
+        btnAddAccount = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@id='linkCuenta']//i")))
+        btnAddAccount.click()
+            
+        btnCerrarPopUp = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Close (Esc)']")))
+        btnCerrarPopUp.click()
+        
+        if wait_for_element(driver, (By.XPATH, "//td[contains(text(),'Eliminar')]")):
+            
+            btnSeleccionarAccount = wait.until(EC.element_to_be_clickable((By.XPATH, f"//td[contains(text(),'{nroCuentaString}')]/preceding-sibling::*[1]//input")))
+            btnSeleccionarAccount.click()
+            
+            time.sleep(1)
+            
+            btnGuardarCambios = wait.until(EC.element_to_be_clickable((By.XPATH, "(//a[@id='agregarCuentas'])[1]/following-sibling::*[2]")))
+            btnGuardarCambios.click()
+            
+            btnEliminar = wait.until(EC.element_to_be_clickable((By.XPATH, "//td[contains(text(),'Eliminar')]/following-sibling::*[4]")))
+            btnEliminar.click()
+            
+            btnConfirmarEliminar = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(),'Confirmar')]")))
+            btnConfirmarEliminar.click()
+            
+            time.sleep(3)
+            
+        btnVolverHome = wait.until(EC.element_to_be_clickable((By.XPATH, "//name[contains(text(),'Información de la cuenta')]/../..")))
+        btnVolverHome.click()
+    except:
+        driver.get("https://www.aguasandinas.cl/web/aguasandinas/informacion-de-la-cuenta")
+        btnAddAccount = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@id='linkCuenta']//i")))
+        btnAddAccount.click()
+            
+        btnCerrarPopUp = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Close (Esc)']")))
+        btnCerrarPopUp.click()
+        
+        if wait_for_element(driver, (By.XPATH, "//td[contains(text(),'Eliminar')]")):
+            
+            btnSeleccionarAccount = wait.until(EC.element_to_be_clickable((By.XPATH, f"//td[contains(text(),'{nroCuentaString}')]/preceding-sibling::*[1]//input")))
+            btnSeleccionarAccount.click()
+            
+            time.sleep(1)
+            
+            btnGuardarCambios = wait.until(EC.element_to_be_clickable((By.XPATH, "(//a[@id='agregarCuentas'])[1]/following-sibling::*[2]")))
+            btnGuardarCambios.click()
+            
+            btnEliminar = wait.until(EC.element_to_be_clickable((By.XPATH, "//td[contains(text(),'Eliminar')]/following-sibling::*[4]")))
+            btnEliminar.click()
+            
+            btnConfirmarEliminar = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(),'Confirmar')]")))
+            btnConfirmarEliminar.click()
+            
+            time.sleep(3)
+            
+        btnVolverHome = wait.until(EC.element_to_be_clickable((By.XPATH, "//name[contains(text(),'Información de la cuenta')]/../..")))
+        btnVolverHome.click()
+        
 def devolverFechaVuelta(fechaOriginal):
     fecha_str = fechaOriginal
     fecha_obj = datetime.strptime(fecha_str, "%d/%m/%Y")
@@ -66,7 +126,6 @@ def create_service_reading(
     service_connection_id: str,
     user_id: str,
     value: float,
-    status_service: str,
     unit: str,
     reading_date: str,
     month: str,
@@ -74,33 +133,33 @@ def create_service_reading(
     type_: str,
     due_date: str,
     total_a_pagar: Optional[float] = None,
-    previous_balance: Optional[float] = None,
+    previous_balance: Optional[float] = 0,
     bucket_url: Optional[str] = None,
-    pdf: Optional[Any] = None,
+    pdf: Optional[Any] = None,  # Si es un archivo o bytes, puedes especificar bytes
     invoice_details: Optional[Dict] = None,
     is_factura: Optional[bool] = None
 ) -> str:
     collection_ref = db.collection("readings")
 
-    existing_docs = collection_ref.where("serviceConnectionId", "==", service_connection_id)\
-                                  .where("month", "==", month)\
-                                  .where("year", "==", year)\
+    # Buscar si ya existe un documento para esa conexión, mes y año
+    existing_docs = collection_ref.where("serviceConnectionId", "==", service_connection_id) \
+                                  .where("month", "==", month) \
+                                  .where("year", "==", year) \
                                   .stream()
-    
-    doc_id = None
-    for doc in existing_docs:
-        doc_id = doc.id 
-        break
-    
+
+    doc_id = next((doc.id for doc in existing_docs), None)
+
+    # Generar ID si no existe documento previo
+    new_id = generate_ksuid("read") if not doc_id else doc_id
+
     reading_data = {
-        "id": generate_ksuid("read"),
+        "id": new_id,
         "serviceId": service_id,
         "serviceConnectionId": service_connection_id,
         "userId": user_id,
         "value": value,
         "totalAPagar": total_a_pagar,
         "previousBalance": previous_balance,
-        "statusService": status_service,
         "unit": unit,
         "readingDate": reading_date,
         "month": month,
@@ -116,13 +175,10 @@ def create_service_reading(
         collection_ref.document(doc_id).set(reading_data, merge=True)
         print(f"Service reading updated with ID: {doc_id}")
     else:
-        doc_ref = collection_ref.add(reading_data)
-        doc_id = doc_ref[1].id
-        print(f"New service reading created with ID: {doc_id}")
-    
-    return doc_id
+        collection_ref.document(new_id).set(reading_data)
+        print(f"New service reading created with ID: {new_id}")
 
-    
+    return new_id
 
 def update_scrapping_success(connection_id: str, scrapSuccess: bool, minerSuccess:bool, errorDetail:str = "", status = "active"):
     doc_ref = db.collection("connections").document(connection_id)
@@ -164,75 +220,10 @@ def crear_carpeta_descarga():
     os.makedirs(carpeta_descarga, exist_ok=True)
     return carpeta_descarga
 
-
 def tomar_screenshot(driver, carpeta_descarga, nombre="screenshot.png"):
     ruta_screenshot = os.path.join(carpeta_descarga, nombre)
     driver.save_screenshot(ruta_screenshot)
     print(f"Screenshot guardado como {ruta_screenshot}")
-
-
-def cerrar_edge():
-    for proc in psutil.process_iter(attrs=['pid', 'name']):
-        if proc.info['name'] == "msedge.exe":
-            os.kill(proc.info['pid'], 9)
-    MAX_INTENTOS = 3
-    intentos = 0
-    
-    while intentos < MAX_INTENTOS:
-        try:
-            print(f"Intento {intentos + 1} de {MAX_INTENTOS}...")
-
-
-            time.sleep(random.uniform(3, 5))
-            btnMisCuentas = wait.until(EC.element_to_be_clickable((By.XPATH, "//name[contains(text(),'Mis cuentas')]/../..")))
-            btnMisCuentas.click()
-
-            tomar_screenshot(driver, carpeta_descarga, "login_page2.png")
-
-            numerosFactura = []
-            mes = []
-            fechaVencimiento = []
-            monto = []
-            estado = []
-
-            for i in range(1, 4):
-                numerosFactura.append(driver.find_element(By.XPATH, f'(//td[@data-th="Numero de factura"])[{i}]').text)
-                mes.append(driver.find_element(By.XPATH, f'(//td[@data-th="Mes"])[{i}]').text)
-                fechaVencimiento.append(driver.find_element(By.XPATH, f'(//td[@data-th="Fecha de vencimiento"])[{i}]').text)
-                monto.append(driver.find_element(By.XPATH, f'(//td[@data-th="Monto"])[{i}]').text)
-                estado.append(driver.find_element(By.XPATH, f'(//td[@data-th="Estado"])[{i}]').text)
-                btnDescargaPDF = driver.find_element(By.XPATH, f'(//td[@data-th="PDF"])[{i}]')
-                btnDescargaPDF.click()
-                time.sleep(3)
-                cerrar_edge()
-                time.sleep(1)
-
-            data = {
-                "Numero Factura": numerosFactura,
-                "Mes": mes,
-                "Fecha Vencimiento": fechaVencimiento,
-                "Monto": monto,
-                "Estado": estado
-            }
-            df = pd.DataFrame(data)
-            excel_path = os.path.join(carpeta_descarga, "facturas.xlsx")
-            df.to_excel(excel_path, index=False)
-            print(f"Archivo Excel guardado en: {excel_path}")
-
-            tomar_screenshot(driver, carpeta_descarga, "login_page4.png")
-            time.sleep(1)
-            driver.quit()
-            print("Proceso completado con éxito.")
-            return {"message": "Scraping completado", "excel_path": excel_path}
-
-        except Exception as e:
-            print(f"Error ocurrido: {e}")
-            if 'driver' in locals():
-                driver.quit()
-
-            intentos += 1
-            if intentos >= MAX_INTENTOS:
-                print("Se alcanzó el número máximo de intentos. Saliendo...")
 
 def scrapping2(data):
     print(f"Probando con el usuario {data['config']['clientId']}")
@@ -253,7 +244,7 @@ def scrapping2(data):
             btnBuscar = wait.until(EC.element_to_be_clickable((By.XPATH, "(//input[@value = 'Buscar'])[1]")))
             btnBuscar.click()
             
-            if wait_for_element(driver, (By.XPATH, "//p[contains(text(),'No existe la cuenta')]")):
+            if wait_for_element(driver, (By.XPATH, "//*[contains(text(),'Por favor ingrese su')]")):
                 print("Usuario no existe, volviendo al home")
                 btnCerrarPopUp = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Close (Esc)']")))
                 btnCerrarPopUp.click()
@@ -263,7 +254,17 @@ def scrapping2(data):
                 
                 update_connection_scrap_bad(data["id"], False, "error", "Numero de cliente no existe.")
                 return
+            
+            if wait_for_element(driver, (By.XPATH, "//p[contains(text(),'No existe la cuenta')]")):
+                print("Usuario no existe, volviendo al home")
+                btnCerrarPopUp = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@title='Close (Esc)']")))
+                btnCerrarPopUp.click()
                 
+                btnVolverHome = wait.until(EC.element_to_be_clickable((By.XPATH, "//name[contains(text(),'Información de la cuenta')]/../..")))
+                btnVolverHome.click()
+                
+                update_connection_scrap_bad(data["id"], False, "error", "Numero de cliente no existe.")
+                return          
             else:
                 btnSeleccionarCuenta = wait.until(EC.element_to_be_clickable((By.XPATH, "//td[@data-th='Seleccionar']//input")))
                 btnSeleccionarCuenta.click()
@@ -323,7 +324,7 @@ def scrapping2(data):
             consumoTotal.append(dato.text)
          
         for i in range(0,len(listaMeses)):
-            create_service_reading(data["serviceId"],data["id"],data["userId"],float(consumoTotal[i]),"m3",devolverFechaVuelta(fechaLectura[i]),devolverMes(fechaLectura[i]),devolverAnio(fechaLectura[i]), "water", devolverFechaVuelta(listaFechaVenc[i]), limpiarMonto(listaMonto[i]))
+            create_service_reading(data["serviceId"],data["id"],data["userId"],float(consumoTotal[i]),"m3",devolverFechaVuelta(fechaLectura[i]).replace('/','-'),devolverMes(fechaLectura[i]),devolverAnio(fechaLectura[i]), "water", devolverFechaVuelta(listaFechaVenc[i]).replace('/','-'), limpiarMonto(listaMonto[i]))
             
         update_scrapping_success(data["id"], True, True)
         
@@ -360,12 +361,13 @@ def scrapping2(data):
         btnVolverHome = wait.until(EC.element_to_be_clickable((By.XPATH, "//name[contains(text(),'Información de la cuenta')]/../..")))
         btnVolverHome.click()
         
+        print(f"Scrapp_de_cliente_{data['config']['clientId']}")
         
     except Exception as e:
         print(f"Error:{e}")
         print("Error durante scrapping, sacando foto")
-        tomar_screenshot(driver, carpeta_descarga, "FallaScrapping.png")
-        driver.get("https://www.aguasandinas.cl/web/aguasandinas/informacion-de-la-cuenta")
+        tomar_screenshot(driver, carpeta_descarga, f"FallaScrapping_{data['config']['clientId']}.png")
+        eliminarCuentaError(nroCuentaString)
         
 def enviar_captcha(api_key, site_key, url):
     response = requests.post("https://2captcha.com/demo/recaptcha-v2", data={
@@ -386,8 +388,53 @@ def obtener_resultado(api_key, request_id):
         resultado = res.json()
         if resultado['status'] == 1:
             return resultado['request']
-        time.sleep(5)  # esperar y reintentar    
+        time.sleep(5)  # esperar y reintentar
+        
+def isVisibleCatpchaAndResolve(url):
+    if wait_for_element(driver, (By.XPATH, "//iframe[@id = 'main-iframe']")):
+        print("Captcha aparecido")
+        tomar_screenshot(driver, carpeta_descarga, f"captchaUnResolve_{url}.png")
+        solver = TwoCaptcha('959db27aed2dd71809556c892b7d9cb7')
+        sitekey = 'dd6e16a7-972e-47d2-93d0-96642fb6d8de'
+        try:
+            result = solver.hcaptcha(sitekey=sitekey, url=url)
+            iframe = driver.find_element(By.XPATH, "//iframe[@id = 'main-iframe']")
+            driver.switch_to.frame(iframe)
+            recaptchaName = driver.find_element("//textarea[contains(@id,'g-recaptcha-response')]")
+            id_elemento = recaptchaName.get_attribute("id")
+            driver.execute_script(f'document.getElementById("{id_elemento}").innerHTML="{result["code"]}";')
+            btn2Captcha = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@id='checkbox']")))
+            btn2Captcha.click()
+            driver.switch_to.default_content()
+            tomar_screenshot(driver, carpeta_descarga, f"captchaResolve_{url}.png")
+        except Exception as e:
+            print("Error al resolver el CAPTCHA:", str(e))
+            
+def isVisibleLoginAndLogIn():
+    if wait_for_element(driver, (By.ID, "rut2")):
+        inputRut = wait.until(EC.presence_of_element_located((By.ID, "rut2")))
+        for char in usuario:
+            inputRut.send_keys(char)
+            time.sleep(random.uniform(0.7, 0.8))
+    
+        inputPass = wait.until(EC.presence_of_element_located((By.ID, "clave")))
+        for char in password:
+            inputPass.send_keys(char)
+            time.sleep(random.uniform(0.7, 0.8))
+    
+        btnIngresar = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@value='INGRESAR']")))
+        btnIngresar.click()
+        
+        try:
+            btnCerrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'CERRAR')]")))
+            btnCerrar.click()
+            
+        except Exception as e:
+            print("PopUp No Visible")
+            tomar_screenshot(driver, carpeta_descarga, "PopUpNoVisible.png")
+    
 
+print("Iniciando codigo...")
 carpeta_descarga = crear_carpeta_descarga()
 options = uc.ChromeOptions()
 #options.add_argument("--headless")
@@ -445,28 +492,13 @@ driver.execute_script("""
         return getParameter(parameter);
     };
 """)
+
 driver.delete_all_cookies()
 driver.get("https://www.aguasandinas.cl/web/aguasandinas/login")
-wait = WebDriverWait(driver, 10)
+wait = WebDriverWait(driver, 5)
 
-if wait_for_element(driver, (By.XPATH, "//iframe[@id = 'main-iframe']")):
-    print("Captcha aparecido")
-    iframe = driver.find_element(By.XPATH, "//iframe[@id = 'main-iframe']")
-    driver.switch_to.frame(iframe)
-    SITEKEY = "dd6e16a7-972e-47d2-93d0-96642fb6d8de"
-    url = "https://www.aguasandinas.cl/web/aguasandinas/login"
-    APIKEY = "959db27aed2dd71809556c892b7d9cb7"
-    request_id = enviar_captcha(APIKEY, SITEKEY, url)
-    print("Esperando respuesta...")
-    respuesta_captcha = obtener_resultado(APIKEY, request_id)
-    print("Respuesta captcha:", respuesta_captcha)
-    driver.execute_script(f'document.getElementById("g-recaptcha-response").innerHTML="{respuesta_captcha}";')
-    btn2Captcha = wait.until(EC.element_to_be_clickable((By.XPATH, "//div[@id='checkbox']")))
-    btn2Captcha.click()
-    driver.switch_to.default_content()
+isVisibleCatpchaAndResolve("https://www.aguasandinas.cl/web/aguasandinas/login")
 
-    
-tomar_screenshot(driver, carpeta_descarga, "login_page.png")
 usuario="19999867-6"
 password = "Bmatch12"
 inputRut = wait.until(EC.presence_of_element_located((By.ID, "rut2")))
@@ -482,22 +514,31 @@ for char in password:
 btnIngresar = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@value='INGRESAR']")))
 btnIngresar.click()
 
+isVisibleCatpchaAndResolve("https://www.aguasandinas.cl/web/aguasandinas/login")
+
 try:
     btnCerrar = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'CERRAR')]")))
     btnCerrar.click()
     
 except Exception as e:
     print("PopUp No Visible")
-    
-tomar_screenshot(driver, carpeta_descarga, "loginExitoso.png")
+    tomar_screenshot(driver, carpeta_descarga, "PopUpNoVisible.png")
 
-
-while(True):
-    data = obtenerPrimerDato()
-    if obtenerPrimerDato() != False:
-        scrapping2(data)
-    else:
-        time.sleep(120)
-        print("No hay datos, apretando informacion de la cuenta")
-        btnVolverHome = wait.until(EC.element_to_be_clickable((By.XPATH, "//name[contains(text(),'Información de la cuenta')]/../..")))
-        btnVolverHome.click()
+if wait_for_element(driver, (By.XPATH, "//li[contains(text(),'Cuenta N°:')]//span")):
+    tomar_screenshot(driver, carpeta_descarga, "LoginExitoso.png")
+    while(True):
+        try:
+            data = obtenerPrimerDato()
+            if obtenerPrimerDato() != False:
+                scrapping2(data)
+            else:
+                print("No hay datos, esperando...")
+                time.sleep(120)
+                btnVolverHome = wait.until(EC.element_to_be_clickable((By.XPATH, "//name[contains(text(),'Información de la cuenta')]/../..")))
+                btnVolverHome.click()
+                tomar_screenshot(driver, carpeta_descarga, "EsperaExitosa.png")
+        except:
+                tomar_screenshot(driver, carpeta_descarga, "ErrorDuranteEspera.png")
+                isVisibleCatpchaAndResolve("https://www.aguasandinas.cl/web/aguasandinas/informacion-de-la-cuenta")
+                isVisibleLoginAndLogIn()
+                
