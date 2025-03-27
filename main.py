@@ -368,18 +368,6 @@ def scrapping2(data):
         print("Error durante scrapping, sacando foto")
         tomar_screenshot(driver, carpeta_descarga, f"FallaScrapping_{data['config']['clientId']}.png")
         eliminarCuentaError(nroCuentaString)
-        
-def enviar_captcha(api_key, site_key, url):
-    response = requests.post("https://2captcha.com/demo/recaptcha-v2", data={
-        'key': api_key,
-        'method': 'userrecaptcha',
-        'googlekey': site_key,
-        'pageurl': url,
-        'json': 1
-    })
-    request_id = response.json()['request']
-    print("request_id")
-    return request_id
 
 def obtener_resultado(api_key, request_id):
     url = f"http://2captcha.com/res.php?key={api_key}&action=get&id={request_id}&json=1"
