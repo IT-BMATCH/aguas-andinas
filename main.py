@@ -221,9 +221,17 @@ def crear_carpeta_descarga():
     return carpeta_descarga
 
 def tomar_screenshot(driver, carpeta_descarga, nombre="screenshot.png"):
-    ruta_screenshot = os.path.join(carpeta_descarga, nombre)
-    driver.save_screenshot(ruta_screenshot)
-    print(f"Screenshot guardado como {ruta_screenshot}")
+    try:
+        driver.implicitly_wait(5)
+        ruta_screenshot = os.path.join(carpeta_descarga, nombre)
+        driver.save_screenshot(ruta_screenshot)
+        print(f"Screenshot guardado como {ruta_screenshot}")
+    except:
+        if driver.session_id:  # Verifica si el driver sigue abierto
+            print("Driver Activo")
+        else:
+            print("Error: El driver ya no está activo.")
+        print("Error al tomar screenshot")
 
 def scrapping2(data):
     print(f"Probando con el usuario {data['config']['clientId']}")
